@@ -5,6 +5,12 @@ import {
   LANGUAGE_TO_EXTENSION,
 } from '../src/services/languages.ts';
 import { formatCode, isLanguageFormattable } from '../src/services/formatter.ts';
+import {
+  executeCode,
+  formatValue,
+  formatTable,
+  stripTypeScript,
+} from '../src/services/codeRunner.ts';
 import type { EditorSettings } from '../src/types/editor.ts';
 
 const mockSettings: EditorSettings = {
@@ -126,6 +132,56 @@ async function runTests() {
     brokenRes.error?.includes('Format failed'),
     'Syntax error returns error description without crashing'
   );
+
+  console.log('\n--- Testing Code Runner & Log Interceptor ---');
+  // JavaScript execution with console.log
+  const jsRunRes = await executeCode('console.log("Hello", 42); const a = 10; const b = 20; a + b;', 'javascript');
+  assert(jsRunRes.status === 'success', 'JavaScript executes successfully');
+  assert(jsRunRes.logs.some((l) => l.message === 'Hello 42'), 'Console.log output captured');
+  assert(jsRunRes.logs.some((l) => l.message.includes('30')), 'Expression return value captured');
+
+  // TypeScript execution with types & interfaces
+  const tsCode = `
+    interface Person {
+      name: string;
+      age: number;
+    }
+    type Greeting = string;
+    const greet = (p: Person): Greeting => {
+      return "Hi, " + p.name + " (" + p.age + ")";
+    };
+    const user: Person = { name: "Antigravity", age: 1 };
+    console.log(greet(user));
+  `;
+  const tsRunRes = await executeCode(tsCode, 'typescript');
+  assert(tsRunRes.status === 'success', 'TypeScript executes successfully after stripping types');
+  assert(tsRunRes.logs.some((l) => l.message === 'Hi, Antigravity (1)'), 'TypeScript function prints expected message');
+
+  // Error handling in execution
+  const errCode = 'console.log("Starting"); throw new Error("Custom test error");';
+  const errRunRes = await executeCode(errCode, 'javascript');
+  assert(errRunRes.status === 'error', 'Runtime error sets status to error');
+  assert(errRunRes.logs.some((l) => l.type === 'error' && l.message.includes('Custom test error')), 'Runtime error message captured in logs');
+
+  // JSON parsing and logging
+  const validJson = '{"status": "ok", "count": 5}';
+  const jsonRunRes = await executeCode(validJson, 'json');
+  assert(jsonRunRes.status === 'success', 'JSON validates and executes successfully');
+  assert(jsonRunRes.logs.some((l) => l.message.includes('"status": "ok"')), 'JSON parsed and logged cleanly');
+
+  const invalidJson = '{ bad json }';
+  const invalidJsonRes = await executeCode(invalidJson, 'json');
+  assert(invalidJsonRes.status === 'error', 'Invalid JSON produces parse error log');
+
+  // Value formatting
+  assert(formatValue(null) === 'null', 'formatValue handles null');
+  assert(formatValue(undefined) === 'undefined', 'formatValue handles undefined');
+  assert(formatValue({ test: 123 }).includes('"test": 123'), 'formatValue handles objects');
+  assert(formatValue(100n) === '100n', 'formatValue handles BigInt');
+
+  // TypeScript stripping
+  const stripped = stripTypeScript('const x: number = 42;');
+  assert(!stripped.includes(': number'), 'stripTypeScript removes variable type annotation');
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

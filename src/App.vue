@@ -4,6 +4,7 @@ import { useSettings } from './composables/useSettings';
 import { useToast } from './composables/useToast';
 import { useEditorFiles } from './composables/useEditorFiles';
 import { useEditorGroups } from './composables/useEditorGroups';
+import { useCodeRunner } from './composables/useCodeRunner';
 import { formatCode } from './services/formatter';
 import { LANGUAGE_TO_EXTENSION } from './services/languages';
 import type { CursorPosition, EditorFile } from './types/editor';
@@ -56,6 +57,14 @@ const {
   updateSplitRatio,
 } = useEditorGroups(files.value.map((f) => f.id));
 
+// Code Execution Runner
+const {
+  isExecutingGlobal,
+  getExecutionState,
+  toggleLogOpen,
+  runCode,
+} = useCodeRunner();
+
 // UI states
 const showSettings = ref(false);
 const showLanguageModal = ref(false);
@@ -94,6 +103,27 @@ const currentFocusedFile = computed(() => {
   }
   return activeFile1.value;
 });
+
+// Execution helpers for focused file
+const currentFocusedLogState = computed(() => {
+  return currentFocusedFile.value ? getExecutionState(currentFocusedFile.value.id) : null;
+});
+
+const currentFocusedErrorCount = computed(() => {
+  return currentFocusedLogState.value?.logs.filter((l) => l.type === 'error').length || 0;
+});
+
+async function handleExecuteFocusedFile() {
+  const file = currentFocusedFile.value;
+  if (!file) return;
+  await runCode(file);
+}
+
+function handleToggleLogFocusedFile() {
+  const file = currentFocusedFile.value;
+  if (!file) return;
+  toggleLogOpen(file.id);
+}
 
 // Resizing split panes logic
 const editorAreaRef = ref<HTMLDivElement | null>(null);
@@ -298,6 +328,12 @@ function handleGlobalKeydown(e: KeyboardEvent) {
   } else if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     handleFormatCode();
+  } else if (mod && e.key === 'Enter') {
+    e.preventDefault();
+    handleExecuteFocusedFile();
+  } else if (e.key === 'F5') {
+    e.preventDefault();
+    handleExecuteFocusedFile();
   }
 }
 
@@ -320,10 +356,14 @@ onBeforeUnmount(() => {
       :word-wrap="settings.wordWrap"
       :minimap="settings.minimap"
       :theme="settings.theme"
+      :is-executing="isExecutingGlobal"
+      :is-log-open="currentFocusedLogState?.isOpen"
       @new-file="() => handleNewFile(activeGroupId)"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
       @format-code="handleFormatCode"
+      @execute-code="handleExecuteFocusedFile"
+      @toggle-log="handleToggleLogFocusedFile"
       @split="handleSplit"
       @close-split="closeSplit"
       @toggle-theme="toggleTheme"
@@ -368,6 +408,7 @@ onBeforeUnmount(() => {
             @rename-file="handleRenameFile"
             @new-file="() => handleNewFile('group-1')"
             @close-group="handleCloseGroup"
+            @execute-active-file="() => activeFile1 && runCode(activeFile1)"
           />
 
           <div class="pane-editor-body">
@@ -423,6 +464,7 @@ onBeforeUnmount(() => {
             @rename-file="handleRenameFile"
             @new-file="() => handleNewFile('group-2')"
             @close-group="handleCloseGroup"
+            @execute-active-file="() => activeFile2 && runCode(activeFile2)"
           />
 
           <div class="pane-editor-body">
@@ -452,9 +494,12 @@ onBeforeUnmount(() => {
       :active-file="currentFocusedFile"
       :cursor="currentCursor"
       :settings="settings"
+      :is-log-open="currentFocusedLogState?.isOpen"
+      :error-count="currentFocusedErrorCount"
       @open-language-modal="showLanguageModal = true"
       @toggle-theme="toggleTheme"
       @open-settings="showSettings = true"
+      @toggle-log="handleToggleLogFocusedFile"
     />
 
     <!-- Modals & Overlays -->

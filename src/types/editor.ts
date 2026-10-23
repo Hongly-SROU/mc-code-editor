@@ -43,3 +43,25 @@ export interface Toast {
   duration?: number;
 }
 
+export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'system' | 'result';
+
+export interface LogEntry {
+  id: string;
+  type: LogLevel;
+  message: string;
+  timestamp: Date;
+  details?: unknown;
+}
+
+export type ExecutionStatus = 'idle' | 'running' | 'success' | 'error';
+
+export interface FileExecutionState {
+  fileId: string;
+  status: ExecutionStatus;
+  logs: LogEntry[];
+  durationMs: number | null;
+  isOpen: boolean;
+  lastRunTime?: Date | null;
+}
+
+

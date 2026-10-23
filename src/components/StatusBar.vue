@@ -7,18 +7,22 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Terminal,
 } from 'lucide-vue-next';
 
 defineProps<{
   activeFile: EditorFile | null;
   cursor: CursorPosition;
   settings: EditorSettings;
+  isLogOpen?: boolean;
+  errorCount?: number;
 }>();
 
 const emit = defineEmits<{
   (e: 'open-language-modal'): void;
   (e: 'toggle-theme'): void;
   (e: 'open-settings'): void;
+  (e: 'toggle-log'): void;
 }>();
 </script>
 
@@ -29,6 +33,17 @@ const emit = defineEmits<{
       <div class="status-item" title="Local Workspace">
         <GitBranch :size="13" />
         <span>local</span>
+      </div>
+
+      <div
+        class="status-item clickable log-status-toggle"
+        :class="{ active: isLogOpen, 'has-errors': (errorCount || 0) > 0 }"
+        :title="isLogOpen ? 'Hide execution output log' : 'Show execution output log'"
+        @click="emit('toggle-log')"
+      >
+        <Terminal :size="13" />
+        <span>Output</span>
+        <span v-if="(errorCount || 0) > 0" class="err-count-pill">{{ errorCount }}</span>
       </div>
 
       <div v-if="activeFile?.isDirty" class="status-item warning" title="Document has unsaved changes">
@@ -125,6 +140,20 @@ const emit = defineEmits<{
 
 .status-item.clickable:hover {
   background-color: var(--vscode-statusbar-hover);
+}
+
+.status-item.log-status-toggle.active {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.err-count-pill {
+  background-color: #f14c4c;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 8px;
+  line-height: 1.2;
 }
 
 .status-item.warning {

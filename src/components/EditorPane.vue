@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import type { EditorFile, EditorSettings, CursorPosition } from '../types/editor';
 import { monaco, getOrCreateMonacoModel } from '../services/monaco';
 import { useDragDrop, type DropRegion } from '../composables/useDragDrop';
+import { useCodeRunner } from '../composables/useCodeRunner';
+import EditorLogPanel from './EditorLogPanel.vue';
 import { FilePlus, FolderOpen, Code2, Columns, Rows, ArrowRight } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   (e: 'open-file'): void;
   (e: 'save-file'): void;
   (e: 'format-file'): void;
+  (e: 'execute-file', fileId: string): void;
   (
     e: 'split-drop',
     fileId: string,
@@ -38,6 +41,27 @@ const emit = defineEmits<{
 
 const { isDraggingTab, draggedFileId, sourceGroupId, endDrag } = useDragDrop();
 const currentHoverRegion = ref<DropRegion | null>(null);
+
+// Code Execution & Log State
+const {
+  getExecutionState,
+  setLogOpen,
+  toggleLogOpen,
+  clearLogs,
+  runCode,
+} = useCodeRunner();
+
+const fileLogState = computed(() => {
+  return props.file ? getExecutionState(props.file.id) : null;
+});
+
+function handleExecute() {
+  if (props.file) {
+    emit('execute-file', props.file.id);
+    runCode(props.file);
+  }
+}
+
 
 function onPaneDragOver(e: DragEvent) {
   if (!isDraggingTab.value || !editorContainer.value) return;
@@ -149,6 +173,14 @@ function initMonaco() {
       emit('format-file');
     }
   );
+
+  editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+    handleExecute();
+  });
+
+  editorInstance.addCommand(monaco.KeyCode.F5, () => {
+    handleExecute();
+  });
 
   // ResizeObserver for reliable pane resizing
   resizeObserver = new ResizeObserver(() => {
@@ -320,6 +352,22 @@ onBeforeUnmount(() => {
       :class="{ hidden: !file }"
     ></div>
 
+    <!-- Bottom Execution Log Panel at bottom of file -->
+    <EditorLogPanel
+      v-if="file && fileLogState"
+      :is-open="fileLogState.isOpen"
+      :logs="fileLogState.logs"
+      :status="fileLogState.status"
+      :duration-ms="fileLogState.durationMs"
+      :file-name="file.name"
+      :file-id="file.id"
+      @toggle-open="toggleLogOpen(file.id)"
+      @close="setLogOpen(file.id, false)"
+      @open="setLogOpen(file.id, true)"
+      @clear="clearLogs(file.id)"
+      @execute="handleExecute"
+    />
+
     <!-- Drag & Drop Visual Split Indicator Overlay -->
     <div
       v-if="isDraggingTab && currentHoverRegion"
@@ -446,7 +494,8 @@ onBeforeUnmount(() => {
 
 .monaco-host {
   width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .monaco-host.hidden {

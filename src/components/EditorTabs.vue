@@ -10,6 +10,7 @@ import {
   ArrowRightLeft,
   XCircle,
   Pencil,
+  Play,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (e: 'rename-file', fileId: string, newName: string): void;
   (e: 'new-file', groupId: string): void;
   (e: 'close-group', groupId: string): void;
+  (e: 'execute-active-file'): void;
 }>();
 
 const { startDrag, endDrag, draggedFileId, sourceGroupId, isDraggingTab } = useDragDrop();
@@ -212,8 +214,17 @@ function getFileIcon(fileName: string) {
       </button>
     </div>
 
-    <!-- Right Controls: Close Split Group -->
+    <!-- Right Controls: Run & Close Split Group -->
     <div class="tabs-actions">
+      <button
+        v-if="activeFileId"
+        class="group-action-btn run-tab-action"
+        title="Execute file (Ctrl+Enter)"
+        @click="emit('execute-active-file')"
+      >
+        <Play :size="13" />
+      </button>
+
       <button
         v-if="isSplit"
         class="group-action-btn"
@@ -414,6 +425,16 @@ function getFileIcon(fileName: string) {
 .group-action-btn:hover {
   color: var(--vscode-fg);
   background-color: var(--vscode-toolbar-hover);
+}
+
+.group-action-btn.run-tab-action {
+  color: #4ac26b;
+  margin-right: 4px;
+}
+
+.group-action-btn.run-tab-action:hover {
+  color: #63e6be;
+  background-color: rgba(46, 160, 67, 0.2);
 }
 </style>
 

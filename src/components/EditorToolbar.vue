@@ -7,6 +7,9 @@ import {
   Save,
   Download,
   Sparkles,
+  Play,
+  Terminal,
+  Loader2,
   Columns,
   Rows,
   Maximize2,
@@ -25,6 +28,8 @@ const props = defineProps<{
   wordWrap: 'on' | 'off';
   minimap: boolean;
   theme: 'vs-dark' | 'vs-light';
+  isExecuting?: boolean;
+  isLogOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +37,8 @@ const emit = defineEmits<{
   (e: 'open-file'): void;
   (e: 'save-file', forceSaveAs?: boolean): void;
   (e: 'format-code'): void;
+  (e: 'execute-code'): void;
+  (e: 'toggle-log'): void;
   (e: 'split', direction: 'vertical' | 'horizontal'): void;
   (e: 'close-split'): void;
   (e: 'toggle-theme'): void;
@@ -136,6 +143,30 @@ function cancelToolbarRename() {
       >
         <Sparkles :size="15" />
         <span class="btn-label">Format</span>
+      </button>
+
+      <!-- Execute / Run Code Action -->
+      <button
+        class="tool-btn run-btn"
+        :disabled="!activeFile || isExecuting"
+        :title="`Execute Code (${modKey}+Enter)`"
+        @click="emit('execute-code')"
+      >
+        <Loader2 v-if="isExecuting" :size="15" class="spin-icon" />
+        <Play v-else :size="15" class="run-icon" />
+        <span class="btn-label">{{ isExecuting ? 'Running...' : 'Execute' }}</span>
+      </button>
+
+      <!-- Toggle Log Console -->
+      <button
+        class="tool-btn"
+        :class="{ active: isLogOpen }"
+        :disabled="!activeFile"
+        :title="isLogOpen ? 'Hide Execution Log' : 'Show Execution Log'"
+        @click="emit('toggle-log')"
+      >
+        <Terminal :size="15" />
+        <span class="btn-label">Log</span>
       </button>
     </div>
 
@@ -345,6 +376,36 @@ function cancelToolbarRename() {
 }
 .tool-btn.highlight:hover:not(:disabled) {
   background-color: rgba(117, 190, 255, 0.15);
+}
+
+.tool-btn.run-btn {
+  background-color: rgba(46, 160, 67, 0.16);
+  border-color: rgba(46, 160, 67, 0.35);
+  color: #4ac26b;
+  font-weight: 600;
+}
+
+.tool-btn.run-btn:hover:not(:disabled) {
+  background-color: rgba(46, 160, 67, 0.28);
+  border-color: rgba(46, 160, 67, 0.55);
+  color: #63e6be;
+}
+
+.run-icon {
+  fill: currentColor;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .dirty-badge {
