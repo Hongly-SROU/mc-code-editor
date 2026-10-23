@@ -1,6 +1,8 @@
 import * as monaco from 'monaco-editor';
 import { registerLanguageSuggestions } from './suggestions';
+import { reviewCodeSyntax, type SyntaxIssue } from './syntaxValidator';
 export * from './languages';
+export * from './syntaxValidator';
 
 // Model registry: fileId -> monaco.editor.ITextModel
 const modelsMap = new Map<string, monaco.editor.ITextModel>();
@@ -43,6 +45,44 @@ export function disposeMonacoModel(fileId: string): void {
     model.dispose();
   }
   modelsMap.delete(fileId);
+}
+
+/**
+ * Reviews code syntax and sets squiggly error/warning markers on the Monaco model.
+ */
+export function updateSyntaxMarkers(
+  fileId: string,
+  fileName: string,
+  content: string,
+  language: string
+): SyntaxIssue[] {
+  const model = modelsMap.get(fileId);
+  if (!model || model.isDisposed()) return [];
+
+  const review = reviewCodeSyntax(content, language, fileName);
+
+  const markers: monaco.editor.IMarkerData[] = review.issues.map((issue) => ({
+    severity:
+      issue.severity === 'error'
+        ? monaco.MarkerSeverity.Error
+        : monaco.MarkerSeverity.Warning,
+    message: issue.message,
+    startLineNumber: issue.line,
+    startColumn: issue.column,
+    endLineNumber: issue.endLine || issue.line,
+    endColumn: issue.endColumn || issue.column + 5,
+    source: 'syntax-checker',
+  }));
+
+  monaco.editor.setModelMarkers(model, 'syntax-checker', markers);
+  return review.issues;
+}
+
+export function clearSyntaxMarkers(fileId: string): void {
+  const model = modelsMap.get(fileId);
+  if (model && !model.isDisposed()) {
+    monaco.editor.setModelMarkers(model, 'syntax-checker', []);
+  }
 }
 
 // Define custom VS Code dark and light themes for seamless aesthetic

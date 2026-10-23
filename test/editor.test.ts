@@ -11,6 +11,7 @@ import {
   formatTable,
   stripTypeScript,
 } from '../src/services/codeRunner.ts';
+import { reviewCodeSyntax } from '../src/services/syntaxValidator.ts';
 import type { EditorSettings } from '../src/types/editor.ts';
 
 const mockSettings: EditorSettings = {
@@ -196,6 +197,67 @@ async function runTests() {
   // TypeScript stripping
   const stripped = stripTypeScript('const x: number = 42;');
   assert(!stripped.includes(': number'), 'stripTypeScript removes variable type annotation');
+
+  console.log('\n--- Testing Code Syntax Reviewers for each Language ---');
+  // Golang review
+  const validGo = 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}';
+  const goReviewOk = reviewCodeSyntax(validGo, 'go', 'main.go');
+  assert(goReviewOk.isValid, 'Valid Go code passes syntax review');
+
+  const invalidGo = 'import "fmt"\nfunc main() {\n fmt.Println("missing package")';
+  const goReviewErr = reviewCodeSyntax(invalidGo, 'go', 'main.go');
+  assert(!goReviewErr.isValid, 'Go code missing package clause is flagged as invalid');
+  assert(goReviewErr.issues.some((i) => i.rule?.includes('package') || i.message.includes('package')), 'Go missing package rule flagged');
+
+  // Dart review
+  const validDart = 'void main() {\n  print("hello");\n}';
+  const dartReviewOk = reviewCodeSyntax(validDart, 'dart', 'main.dart');
+  assert(dartReviewOk.isValid, 'Valid Dart code passes syntax review');
+
+  const invalidDart = 'void main() {\n  var x = 10\n  print(x);\n}';
+  const dartReviewErr = reviewCodeSyntax(invalidDart, 'dart', 'main.dart');
+  assert(!dartReviewErr.isValid, 'Dart code missing semicolon is flagged as invalid');
+  assert(dartReviewErr.issues.some((i) => i.message.includes('semicolon')), 'Dart missing semicolon rule flagged');
+
+  // Java review
+  const validJava = 'package com.example;\npublic class App {\n    public static void main(String[] args) {\n        System.out.println("Hello");\n    }\n}';
+  const javaReviewOk = reviewCodeSyntax(validJava, 'java', 'App.java');
+  assert(javaReviewOk.isValid, 'Valid Java code passes syntax review');
+
+  const invalidJava = 'public class {\n    int a = 5\n}';
+  const javaReviewErr = reviewCodeSyntax(invalidJava, 'java', 'App.java');
+  assert(!javaReviewErr.isValid, 'Java code missing class identifier and semicolon is flagged');
+
+  // C++ review
+  const validCpp = '#include <iostream>\n\nstruct Point {\n    int x;\n    int y;\n};\n\nint main() {\n    return 0;\n}';
+  const cppReviewOk = reviewCodeSyntax(validCpp, 'cpp', 'main.cpp');
+  assert(cppReviewOk.isValid, 'Valid C++ code passes syntax review');
+
+  const invalidCpp = 'struct Point {\n    int x;\n} \n int main() { return 0; }';
+  const cppReviewErr = reviewCodeSyntax(invalidCpp, 'cpp', 'main.cpp');
+  assert(!cppReviewErr.isValid, 'C++ struct missing semicolon after closing brace is flagged');
+
+  // Python review
+  const validPy = 'def calculate(a, b):\n    return a + b\n\nif True:\n    print("ok")';
+  const pyReviewOk = reviewCodeSyntax(validPy, 'python', 'script.py');
+  assert(pyReviewOk.isValid, 'Valid Python code passes syntax review');
+
+  const invalidPy = 'if True\n    print("missing colon")';
+  const pyReviewErr = reviewCodeSyntax(invalidPy, 'python', 'script.py');
+  assert(!pyReviewErr.isValid, 'Python statement missing colon is flagged');
+
+  // JSON review
+  const validJsonReview = '{"ok": true, "items": [1, 2, 3]}';
+  assert(reviewCodeSyntax(validJsonReview, 'json', 'data.json').isValid, 'Valid JSON passes review');
+
+  const invalidJsonReview = '{"key": "val",}'; // trailing comma
+  const jsonReviewErr = reviewCodeSyntax(invalidJsonReview, 'json', 'data.json');
+  assert(!jsonReviewErr.isValid, 'JSON with trailing comma flagged as error');
+
+  // Unclosed bracket universal check
+  const unclosedBracket = 'function test() { console.log("oops");';
+  const unclosedErr = reviewCodeSyntax(unclosedBracket, 'javascript', 'test.js');
+  assert(!unclosedErr.isValid, 'Unclosed bracket is flagged as error');
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

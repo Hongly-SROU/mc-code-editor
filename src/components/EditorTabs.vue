@@ -11,6 +11,7 @@ import {
   XCircle,
   Pencil,
   Play,
+  CheckCheck,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   (e: 'new-file', groupId: string): void;
   (e: 'close-group', groupId: string): void;
   (e: 'execute-active-file'): void;
+  (e: 'review-active-file'): void;
 }>();
 
 const { startDrag, endDrag, draggedFileId, sourceGroupId, isDraggingTab } = useDragDrop();
@@ -223,6 +225,15 @@ function getFileIcon(fileName: string) {
         @click="emit('execute-active-file')"
       >
         <Play :size="13" />
+      </button>
+
+      <button
+        v-if="activeFileId"
+        class="group-action-btn"
+        title="Review code syntax"
+        @click="emit('review-active-file')"
+      >
+        <CheckCheck :size="13" />
       </button>
 
       <button

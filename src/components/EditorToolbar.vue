@@ -9,6 +9,7 @@ import {
   Sparkles,
   Play,
   Terminal,
+  CheckCheck,
   Loader2,
   Columns,
   Rows,
@@ -38,6 +39,7 @@ const emit = defineEmits<{
   (e: 'save-file', forceSaveAs?: boolean): void;
   (e: 'format-code'): void;
   (e: 'execute-code'): void;
+  (e: 'review-syntax'): void;
   (e: 'toggle-log'): void;
   (e: 'split', direction: 'vertical' | 'horizontal'): void;
   (e: 'close-split'): void;
@@ -155,6 +157,17 @@ function cancelToolbarRename() {
         <Loader2 v-if="isExecuting" :size="15" class="spin-icon" />
         <Play v-else :size="15" class="run-icon" />
         <span class="btn-label">{{ isExecuting ? 'Running...' : 'Execute' }}</span>
+      </button>
+
+      <!-- Review Code Syntax -->
+      <button
+        class="tool-btn"
+        :disabled="!activeFile"
+        :title="`Review Code Syntax (${altKey}+S)`"
+        @click="emit('review-syntax')"
+      >
+        <CheckCheck :size="15" />
+        <span class="btn-label">Review</span>
       </button>
 
       <!-- Toggle Log Console -->

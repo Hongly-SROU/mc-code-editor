@@ -63,6 +63,7 @@ const {
   getExecutionState,
   toggleLogOpen,
   runCode,
+  reviewFileSyntax,
 } = useCodeRunner();
 
 // UI states
@@ -123,6 +124,24 @@ function handleToggleLogFocusedFile() {
   const file = currentFocusedFile.value;
   if (!file) return;
   toggleLogOpen(file.id);
+}
+
+function handleReviewSyntax(targetFile?: EditorFile | null) {
+  const file = targetFile || currentFocusedFile.value;
+  if (!file) return;
+
+  const result = reviewFileSyntax(file);
+  if (result.isValid && result.issues.length === 0) {
+    success(`✅ Syntax check passed! No errors found in ${file.name}`);
+  } else {
+    const errors = result.issues.filter((i) => i.severity === 'error').length;
+    const warnings = result.issues.length - errors;
+    if (errors > 0) {
+      warning(`⚠️ Found ${errors} syntax error(s) in ${file.name}. View Output log.`);
+    } else {
+      info(`ℹ️ Found ${warnings} syntax warning(s) in ${file.name}. View Output log.`);
+    }
+  }
 }
 
 // Resizing split panes logic
@@ -334,6 +353,9 @@ function handleGlobalKeydown(e: KeyboardEvent) {
   } else if (e.key === 'F5') {
     e.preventDefault();
     handleExecuteFocusedFile();
+  } else if (e.altKey && e.key.toLowerCase() === 's' && !mod) {
+    e.preventDefault();
+    handleReviewSyntax();
   }
 }
 
@@ -363,6 +385,7 @@ onBeforeUnmount(() => {
       @save-file="handleSaveFile"
       @format-code="handleFormatCode"
       @execute-code="handleExecuteFocusedFile"
+      @review-syntax="() => handleReviewSyntax()"
       @toggle-log="handleToggleLogFocusedFile"
       @split="handleSplit"
       @close-split="closeSplit"
@@ -409,6 +432,7 @@ onBeforeUnmount(() => {
             @new-file="() => handleNewFile('group-1')"
             @close-group="handleCloseGroup"
             @execute-active-file="() => activeFile1 && runCode(activeFile1)"
+            @review-active-file="() => handleReviewSyntax(activeFile1)"
           />
 
           <div class="pane-editor-body">
@@ -425,6 +449,7 @@ onBeforeUnmount(() => {
               @open-file="handleOpenFile"
               @save-file="handleSaveFile(false)"
               @format-file="handleFormatCode"
+              @review-file="(id) => handleReviewSyntax(getFileById(id))"
               @split-drop="handleSplitDrop"
               @move-tab-drop="handleMoveTabDrop"
             />
@@ -465,6 +490,7 @@ onBeforeUnmount(() => {
             @new-file="() => handleNewFile('group-2')"
             @close-group="handleCloseGroup"
             @execute-active-file="() => activeFile2 && runCode(activeFile2)"
+            @review-active-file="() => handleReviewSyntax(activeFile2)"
           />
 
           <div class="pane-editor-body">
@@ -481,6 +507,7 @@ onBeforeUnmount(() => {
               @open-file="handleOpenFile"
               @save-file="handleSaveFile(false)"
               @format-file="handleFormatCode"
+              @review-file="(id) => handleReviewSyntax(getFileById(id))"
               @split-drop="handleSplitDrop"
               @move-tab-drop="handleMoveTabDrop"
             />

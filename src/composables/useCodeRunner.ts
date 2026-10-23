@@ -1,6 +1,8 @@
 import { ref } from 'vue';
-import type { EditorFile, FileExecutionState } from '../types/editor';
+import type { EditorFile, FileExecutionState, SyntaxReviewResult } from '../types/editor';
 import { executeCode } from '../services/codeRunner';
+import { reviewCodeSyntax } from '../services/syntaxValidator';
+import { updateSyntaxMarkers } from '../services/monaco';
 
 // Global execution state shared across panes: fileId -> FileExecutionState
 const executionStates = ref<Record<string, FileExecutionState>>({});
@@ -79,6 +81,60 @@ export function useCodeRunner() {
     return state;
   }
 
+  function reviewFileSyntax(file: EditorFile): SyntaxReviewResult {
+    // 1. Update markers in Monaco
+    updateSyntaxMarkers(file.id, file.name, file.content, file.language);
+
+    // 2. Perform detailed syntax review
+    const result = reviewCodeSyntax(file.content, file.language, file.name);
+    const state = getExecutionState(file.id);
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+
+    state.logs = [
+      {
+        id: `syntax-hdr-${Date.now()}`,
+        type: 'system',
+        message: `🔍 [${timeStr}] Code Syntax Review for "${file.name}" (${file.language})`,
+        timestamp: now,
+      },
+    ];
+
+    if (result.issues.length === 0) {
+      state.status = 'success';
+      state.logs.push({
+        id: `syntax-ok-${Date.now()}`,
+        type: 'result',
+        message: `✔ All syntax checks passed for "${file.name}". No syntax errors found!`,
+        timestamp: now,
+      });
+    } else {
+      state.isOpen = true; // Auto open so the user sees all syntax issues at bottom
+      const errorCount = result.issues.filter((i) => i.severity === 'error').length;
+      state.status = errorCount > 0 ? 'error' : 'idle';
+
+      for (const issue of result.issues) {
+        state.logs.push({
+          id: `syntax-issue-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          type: issue.severity === 'error' ? 'error' : 'warn',
+          message: `Line ${issue.line}, Col ${issue.column}: ${issue.message}${issue.rule ? ` [${issue.rule}]` : ''}`,
+          timestamp: now,
+          details: issue,
+        });
+      }
+
+      state.logs.push({
+        id: `syntax-summary-${Date.now()}`,
+        type: 'system',
+        message: `Found ${result.issues.length} syntax issue(s) (${errorCount} error(s), ${result.issues.length - errorCount} warning(s)).`,
+        timestamp: now,
+      });
+    }
+
+    return result;
+  }
+
   return {
     executionStates,
     isExecutingGlobal,
@@ -87,5 +143,6 @@ export function useCodeRunner() {
     toggleLogOpen,
     clearLogs,
     runCode,
+    reviewFileSyntax,
   };
 }

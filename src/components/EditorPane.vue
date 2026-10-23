@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import type { EditorFile, EditorSettings, CursorPosition } from '../types/editor';
-import { monaco, getOrCreateMonacoModel } from '../services/monaco';
+import { monaco, getOrCreateMonacoModel, updateSyntaxMarkers } from '../services/monaco';
 import { useDragDrop, type DropRegion } from '../composables/useDragDrop';
 import { useCodeRunner } from '../composables/useCodeRunner';
 import EditorLogPanel from './EditorLogPanel.vue';
@@ -24,6 +24,7 @@ const emit = defineEmits<{
   (e: 'save-file'): void;
   (e: 'format-file'): void;
   (e: 'execute-file', fileId: string): void;
+  (e: 'review-file', fileId: string): void;
   (
     e: 'split-drop',
     fileId: string,
@@ -182,6 +183,12 @@ function initMonaco() {
     handleExecute();
   });
 
+  editorInstance.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyS, () => {
+    if (props.file) {
+      emit('review-file', props.file.id);
+    }
+  });
+
   // ResizeObserver for reliable pane resizing
   resizeObserver = new ResizeObserver(() => {
     editorInstance?.layout();
@@ -190,6 +197,16 @@ function initMonaco() {
 
   // Load active file model if available
   updateEditorModel();
+}
+
+let syntaxCheckTimeout: number | null = null;
+function scheduleSyntaxCheck() {
+  if (syntaxCheckTimeout) clearTimeout(syntaxCheckTimeout);
+  syntaxCheckTimeout = window.setTimeout(() => {
+    if (props.file) {
+      updateSyntaxMarkers(props.file.id, props.file.name, props.file.content, props.file.language);
+    }
+  }, 400);
 }
 
 function updateEditorModel() {
@@ -217,6 +234,7 @@ function updateEditorModel() {
   }
 
   editorInstance.setModel(model);
+  scheduleSyntaxCheck();
 
   // Listen to edits in Monaco
   contentChangeDisposable = model.onDidChangeContent((e) => {
@@ -225,6 +243,7 @@ function updateEditorModel() {
       const val = model.getValue();
       if (props.file.content !== val) {
         emit('update:content', props.file.id, val);
+        scheduleSyntaxCheck();
       }
     }
   });
@@ -326,6 +345,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (syntaxCheckTimeout) {
+    clearTimeout(syntaxCheckTimeout);
+  }
   resizeObserver?.disconnect();
   contentChangeDisposable?.dispose();
   cursorChangeDisposable?.dispose();

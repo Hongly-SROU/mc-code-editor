@@ -64,4 +64,7 @@ export interface FileExecutionState {
   lastRunTime?: Date | null;
 }
 
+export type { SyntaxIssue, SyntaxReviewResult } from '../services/syntaxValidator';
+
+
 
