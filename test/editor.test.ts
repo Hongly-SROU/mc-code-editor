@@ -50,6 +50,12 @@ async function runTests() {
   assert(detectLanguage('README.md') === 'markdown', 'detect .md as markdown');
   assert(detectLanguage('server.py') === 'python', 'detect .py as python');
   assert(detectLanguage('main.rs') === 'rust', 'detect .rs as rust');
+  assert(detectLanguage('main.go') === 'go', 'detect .go as go');
+  assert(detectLanguage('app.dart') === 'dart', 'detect .dart as dart');
+  assert(detectLanguage('Application.java') === 'java', 'detect .java as java');
+  assert(detectLanguage('main.cpp') === 'cpp', 'detect .cpp as cpp');
+  assert(detectLanguage('engine.cc') === 'cpp', 'detect .cc as cpp');
+  assert(detectLanguage('header.hpp') === 'cpp', 'detect .hpp as cpp');
   assert(detectLanguage('script.sh') === 'shell', 'detect .sh as shell');
   assert(detectLanguage('Dockerfile') === 'dockerfile', 'detect Dockerfile as dockerfile');
   assert(detectLanguage('unknown.xyz') === 'plaintext', 'detect unknown as plaintext');
@@ -63,11 +69,19 @@ async function runTests() {
   assert(normalizeFileName('server.py') === 'server.py', 'preserves .py extension');
   assert(normalizeFileName('data.json') === 'data.json', 'preserves .json extension');
   assert(normalizeFileName('doc.md') === 'doc.md', 'preserves .md extension');
+  assert(normalizeFileName('main.go') === 'main.go', 'preserves .go extension');
+  assert(normalizeFileName('widget.dart') === 'widget.dart', 'preserves .dart extension');
+  assert(normalizeFileName('App.java') === 'App.java', 'preserves .java extension');
+  assert(normalizeFileName('main.cpp') === 'main.cpp', 'preserves .cpp extension');
   assert(normalizeFileName('custom.myext') === 'custom.myext', 'allows any custom extension');
   assert(detectLanguage('custom.myext') === 'plaintext', 'custom unknown extension is handled safely');
   assert(LANGUAGE_TO_EXTENSION['python'] === 'py', 'language mapping for python');
   assert(LANGUAGE_TO_EXTENSION['typescript'] === 'ts', 'language mapping for typescript');
   assert(LANGUAGE_TO_EXTENSION['javascript'] === 'js', 'language mapping for javascript');
+  assert(LANGUAGE_TO_EXTENSION['go'] === 'go', 'language mapping for go');
+  assert(LANGUAGE_TO_EXTENSION['dart'] === 'dart', 'language mapping for dart');
+  assert(LANGUAGE_TO_EXTENSION['java'] === 'java', 'language mapping for java');
+  assert(LANGUAGE_TO_EXTENSION['cpp'] === 'cpp', 'language mapping for cpp');
 
   console.log('\n--- Testing Prettier Formatter ---');
   // TypeScript format

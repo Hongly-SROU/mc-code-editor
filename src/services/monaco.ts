@@ -1,4 +1,5 @@
 import * as monaco from 'monaco-editor';
+import { registerLanguageSuggestions } from './suggestions';
 export * from './languages';
 
 // Model registry: fileId -> monaco.editor.ITextModel
@@ -95,6 +96,7 @@ export function defineCustomThemes(): void {
 
 // Call once
 defineCustomThemes();
+registerLanguageSuggestions(monaco);
 
 export { monaco };
 
