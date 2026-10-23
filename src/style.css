@@ -1,0 +1,101 @@
+:root,
+[data-theme='vs-dark'] {
+  --vscode-bg: #181818;
+  --vscode-editor-bg: #1e1e1e;
+  --vscode-fg: #cccccc;
+  --vscode-fg-muted: #858585;
+  --vscode-border: #2d2d2d;
+  --vscode-toolbar-bg: #252526;
+  --vscode-toolbar-hover: #333333;
+  --vscode-toolbar-active: #3e3e3e;
+  --vscode-sidebar-bg: #252526;
+  --vscode-tabs-bg: #252526;
+  --vscode-tab-inactive-bg: #2d2d2d;
+  --vscode-tab-inactive-fg: #969696;
+  --vscode-tab-hover-bg: #323232;
+  --vscode-statusbar-bg: #007acc;
+  --vscode-statusbar-fg: #ffffff;
+  --vscode-statusbar-hover: rgba(255, 255, 255, 0.15);
+  --vscode-button-bg: #0e639c;
+  --vscode-button-hover: #1177bb;
+  --vscode-accent: #007acc;
+  --vscode-list-hover: #2a2d2e;
+  --vscode-list-active: #37373d;
+  --vscode-input-bg: #3c3c3c;
+  --vscode-input-border: #3c3c3c;
+  --vscode-toast-bg: #252526;
+  --vscode-toast-fg: #cccccc;
+}
+
+[data-theme='vs-light'] {
+  --vscode-bg: #f3f3f3;
+  --vscode-editor-bg: #ffffff;
+  --vscode-fg: #333333;
+  --vscode-fg-muted: #717171;
+  --vscode-border: #e4e4e4;
+  --vscode-toolbar-bg: #f8f8f8;
+  --vscode-toolbar-hover: #eaeaea;
+  --vscode-toolbar-active: #dfdfdf;
+  --vscode-sidebar-bg: #f3f3f3;
+  --vscode-tabs-bg: #f3f3f3;
+  --vscode-tab-inactive-bg: #ececec;
+  --vscode-tab-inactive-fg: #616161;
+  --vscode-tab-hover-bg: #e2e2e2;
+  --vscode-statusbar-bg: #007acc;
+  --vscode-statusbar-fg: #ffffff;
+  --vscode-statusbar-hover: rgba(255, 255, 255, 0.2);
+  --vscode-button-bg: #007acc;
+  --vscode-button-hover: #0062a3;
+  --vscode-accent: #007acc;
+  --vscode-list-hover: #e8e8e8;
+  --vscode-list-active: #e4e6f1;
+  --vscode-input-bg: #ffffff;
+  --vscode-input-border: #cecece;
+  --vscode-toast-bg: #ffffff;
+  --vscode-toast-fg: #333333;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--vscode-bg);
+  color: var(--vscode-fg);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.7);
+}
+
+/* Monaco Editor Overrides */
+.monaco-editor,
+.monaco-editor-preview {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace !important;
+}
