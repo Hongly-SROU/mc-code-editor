@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref, nextTick } from 'vue';
 import type { EditorFile } from '../types/editor';
+import { useDragDrop } from '../composables/useDragDrop';
 import {
   FileCode,
   FileText,
@@ -7,9 +9,10 @@ import {
   Plus,
   ArrowRightLeft,
   XCircle,
+  Pencil,
 } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
   groupId: string;
   files: EditorFile[];
   activeFileId: string | null;
@@ -20,9 +23,79 @@ const emit = defineEmits<{
   (e: 'select-tab', fileId: string): void;
   (e: 'close-tab', fileId: string): void;
   (e: 'move-tab', fileId: string): void;
-  (e: 'new-file'): void;
+  (e: 'move-tab-drop', fileId: string, fromGroupId: string, toGroupId: string): void;
+  (e: 'rename-file', fileId: string, newName: string): void;
+  (e: 'new-file', groupId: string): void;
   (e: 'close-group', groupId: string): void;
 }>();
+
+const { startDrag, endDrag, draggedFileId, sourceGroupId, isDraggingTab } = useDragDrop();
+const isDragOverBar = ref(false);
+
+const editingFileId = ref<string | null>(null);
+const editingFileName = ref<string>('');
+const renameInputRef = ref<HTMLInputElement | null>(null);
+
+function onTabDragStart(e: DragEvent, fileId: string) {
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', fileId);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  startDrag(fileId, props.groupId);
+}
+
+function onTabDragEnd() {
+  endDrag();
+  isDragOverBar.value = false;
+}
+
+function onBarDragOver(e: DragEvent) {
+  if (isDraggingTab.value) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    isDragOverBar.value = true;
+  }
+}
+
+function onBarDragLeave() {
+  isDragOverBar.value = false;
+}
+
+function onBarDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragOverBar.value = false;
+  const fileId = e.dataTransfer?.getData('text/plain') || draggedFileId.value;
+  const fromGroup = sourceGroupId.value;
+  if (fileId && fromGroup && fromGroup !== props.groupId) {
+    emit('move-tab-drop', fileId, fromGroup, props.groupId);
+  }
+  endDrag();
+}
+
+function startRename(file: EditorFile) {
+  editingFileId.value = file.id;
+  editingFileName.value = file.name;
+  nextTick(() => {
+    renameInputRef.value?.focus();
+    renameInputRef.value?.select();
+  });
+}
+
+function commitRename(fileId: string) {
+  if (editingFileId.value === fileId) {
+    const val = editingFileName.value.trim();
+    if (val) {
+      emit('rename-file', fileId, val);
+    }
+    editingFileId.value = null;
+  }
+}
+
+function cancelRename() {
+  editingFileId.value = null;
+}
 
 function getFileIcon(fileName: string) {
   const ext = fileName.split('.').pop()?.toLowerCase();
@@ -44,13 +117,25 @@ function getFileIcon(fileName: string) {
 </script>
 
 <template>
-  <div class="tabs-header">
+  <div
+    class="tabs-header"
+    :class="{ 'drag-over-bar': isDragOverBar }"
+    @dragover.prevent="onBarDragOver"
+    @dragleave="onBarDragLeave"
+    @drop="onBarDrop"
+  >
     <div class="tabs-scroll-area">
       <div
         v-for="file in files"
         :key="file.id"
         class="tab-item"
-        :class="{ active: file.id === activeFileId }"
+        :class="{
+          active: file.id === activeFileId,
+          'is-dragging': draggedFileId === file.id,
+        }"
+        :draggable="editingFileId !== file.id"
+        @dragstart="onTabDragStart($event, file.id)"
+        @dragend="onTabDragEnd"
         @click="emit('select-tab', file.id)"
       >
         <component
@@ -59,7 +144,35 @@ function getFileIcon(fileName: string) {
           class="tab-icon"
           :class="'ext-' + file.name.split('.').pop()"
         />
-        <span class="tab-title" :title="file.name">{{ file.name }}</span>
+
+        <!-- Inline Rename Input -->
+        <template v-if="editingFileId === file.id">
+          <input
+            ref="renameInputRef"
+            v-model="editingFileName"
+            class="tab-rename-input"
+            @keydown.enter.stop="commitRename(file.id)"
+            @keydown.esc.stop="cancelRename"
+            @blur="commitRename(file.id)"
+            @click.stop
+          />
+        </template>
+        <template v-else>
+          <span
+            class="tab-title"
+            :title="`${file.name} (Double-click to edit file extension)`"
+            @dblclick.stop="startRename(file)"
+          >
+            {{ file.name }}
+          </span>
+          <button
+            class="tab-rename-btn"
+            title="Rename file & extension"
+            @click.stop="startRename(file)"
+          >
+            <Pencil :size="11" />
+          </button>
+        </template>
 
         <!-- Dirty Indicator or Close Button -->
         <span
@@ -93,7 +206,7 @@ function getFileIcon(fileName: string) {
       <button
         class="tab-add-btn"
         title="New Untitled File"
-        @click="emit('new-file')"
+        @click="emit('new-file', groupId)"
       >
         <Plus :size="14" />
       </button>
@@ -123,6 +236,12 @@ function getFileIcon(fileName: string) {
   justify-content: space-between;
   user-select: none;
   overflow: hidden;
+  transition: background-color 0.15s ease;
+}
+
+.tabs-header.drag-over-bar {
+  background-color: rgba(0, 122, 204, 0.2);
+  outline: 1px dashed var(--vscode-accent);
 }
 
 .tabs-scroll-area {
@@ -165,6 +284,10 @@ function getFileIcon(fileName: string) {
   background-color: var(--vscode-editor-bg);
   color: var(--vscode-fg);
   border-top: 2px solid var(--vscode-accent);
+}
+
+.tab-item.is-dragging {
+  opacity: 0.4;
 }
 
 .tab-icon {
@@ -210,6 +333,19 @@ function getFileIcon(fileName: string) {
   height: 14px;
 }
 
+.tab-rename-input {
+  background-color: var(--vscode-input-bg);
+  color: var(--vscode-fg);
+  border: 1px solid var(--vscode-accent);
+  border-radius: 2px;
+  font-size: 12px;
+  padding: 1px 4px;
+  outline: none;
+  width: 100px;
+  max-width: 130px;
+}
+
+.tab-rename-btn,
 .tab-close-btn,
 .tab-move-btn {
   background: none;
@@ -222,6 +358,8 @@ function getFileIcon(fileName: string) {
   align-items: center;
 }
 
+.tab-item:hover .tab-rename-btn,
+.tab-item.active .tab-rename-btn,
 .tab-item:hover .tab-close-btn,
 .tab-item.active .tab-close-btn,
 .tab-item:hover .tab-move-btn,
@@ -230,9 +368,10 @@ function getFileIcon(fileName: string) {
 }
 
 .tab-item:hover .tab-dirty {
-  display: none; /* Hide dot when hovering so close button takes its place */
+  display: none; /* Hide dot when hovering so buttons take its place */
 }
 
+.tab-rename-btn:hover,
 .tab-close-btn:hover,
 .tab-move-btn:hover {
   color: var(--vscode-fg);
@@ -277,3 +416,4 @@ function getFileIcon(fileName: string) {
   background-color: var(--vscode-toolbar-hover);
 }
 </style>
+

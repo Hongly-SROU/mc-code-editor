@@ -5,10 +5,10 @@ import { useToast } from './composables/useToast';
 import { useEditorFiles } from './composables/useEditorFiles';
 import { useEditorGroups } from './composables/useEditorGroups';
 import { formatCode } from './services/formatter';
+import { LANGUAGE_TO_EXTENSION } from './services/languages';
 import type { CursorPosition, EditorFile } from './types/editor';
 
 import EditorToolbar from './components/EditorToolbar.vue';
-import FileExplorer from './components/FileExplorer.vue';
 import EditorTabs from './components/EditorTabs.vue';
 import EditorPane from './components/EditorPane.vue';
 import StatusBar from './components/StatusBar.vue';
@@ -28,6 +28,7 @@ const {
   saveFile,
   updateContent,
   setLanguage,
+  renameFile,
   requestCloseFile,
   pendingCloseFile,
   confirmCloseSave,
@@ -45,6 +46,8 @@ const {
   isSplit,
   setActiveGroup,
   splitEditor,
+  splitWithDraggedFile,
+  moveTab,
   closeSplit,
   openFileInGroup,
   closeTabInGroup,
@@ -54,7 +57,6 @@ const {
 } = useEditorGroups(files.value.map((f) => f.id));
 
 // UI states
-const sidebarOpen = ref(true);
 const showSettings = ref(false);
 const showLanguageModal = ref(false);
 const currentCursor = ref<CursorPosition>({ lineNumber: 1, column: 1 });
@@ -126,10 +128,55 @@ function stopDividerDrag() {
 }
 
 // User Actions
-function handleNewFile() {
+function handleNewFile(targetGroupId?: string) {
   const newFile = createFile();
-  openFileInGroup(newFile.id, activeGroupId.value);
+  const destGroup = targetGroupId || activeGroupId.value;
+  openFileInGroup(newFile.id, destGroup);
   info(`Created ${newFile.name}`);
+}
+
+function handleSplit(direction: 'vertical' | 'horizontal') {
+  if (isSplit.value) {
+    splitDirection.value = direction;
+    return;
+  }
+
+  // If group 1 has multiple files, move one to group 2
+  if (group1.value.fileIds.length > 1) {
+    const fileToMove = group1.value.fileIds[group1.value.fileIds.length - 1];
+    splitWithDraggedFile(fileToMove, 'group-1', direction, 'right');
+  } else {
+    // Only 1 file exists: create a fresh independent file for group 2 so they do not overwrite!
+    const newFile = createFile();
+    splitEditor(direction, newFile.id);
+  }
+}
+
+function handleSplitDrop(
+  fileId: string,
+  fromGroupId: string,
+  direction: 'vertical' | 'horizontal',
+  target: 'right' | 'bottom' | 'left' | 'top'
+) {
+  splitWithDraggedFile(fileId, fromGroupId, direction, target);
+
+  // If source group has no files remaining, provide a new file so it is not empty
+  const sourceGroup = fromGroupId === 'group-1' ? group1.value : group2.value;
+  if (sourceGroup.fileIds.length === 0) {
+    const newFile = createFile();
+    openFileInGroup(newFile.id, fromGroupId);
+  }
+
+  const fileName = getFileById(fileId)?.name || 'file';
+  success(`Split editor with ${fileName}`);
+}
+
+function handleMoveTabDrop(
+  fileId: string,
+  fromGroupId: string,
+  toGroupId: string
+) {
+  moveTab(fileId, fromGroupId, toGroupId);
 }
 
 async function handleOpenFile() {
@@ -159,13 +206,6 @@ async function handleFormatCode() {
   }
 }
 
-async function handleCloseFile(fileId: string) {
-  const closed = await requestCloseFile(fileId);
-  if (closed) {
-    removeFileFromAllGroups(fileId);
-  }
-}
-
 async function handleCloseTab(fileId: string, groupId: string) {
   // Check if file is open in another group as well
   const otherGroup = groupId === 'group-1' ? group2.value : group1.value;
@@ -181,10 +221,6 @@ async function handleCloseTab(fileId: string, groupId: string) {
       removeFileFromAllGroups(fileId);
     }
   }
-}
-
-function handleSelectFileFromExplorer(fileId: string) {
-  openFileInGroup(fileId, activeGroupId.value);
 }
 
 function handleSelectTab(fileId: string, groupId: string) {
@@ -207,10 +243,20 @@ function handleCloseGroup(groupId: string) {
   }
 }
 
+function handleRenameFile(fileId: string, newName: string) {
+  renameFile(fileId, newName);
+}
+
 function handleLanguageChange(languageId: string) {
   const file = currentFocusedFile.value;
   if (!file) return;
   setLanguage(file.id, languageId);
+  const newExt = LANGUAGE_TO_EXTENSION[languageId];
+  if (newExt) {
+    const dotIdx = file.name.lastIndexOf('.');
+    const base = dotIdx !== -1 ? file.name.substring(0, dotIdx) : file.name;
+    file.name = `${base}.${newExt}`;
+  }
   success(`Changed language to ${languageId}`);
 }
 
@@ -242,15 +288,12 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     if (activeId) {
       handleCloseTab(activeId, activeGroupId.value);
     }
-  } else if (mod && e.key.toLowerCase() === 'b') {
-    e.preventDefault();
-    sidebarOpen.value = !sidebarOpen.value;
   } else if (mod && e.key === '\\') {
     e.preventDefault();
     if (isSplit.value) {
       closeSplit();
     } else {
-      splitEditor('vertical');
+      handleSplit('vertical');
     }
   } else if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
@@ -274,36 +317,24 @@ onBeforeUnmount(() => {
     <EditorToolbar
       :active-file="currentFocusedFile"
       :split-direction="splitDirection"
-      :sidebar-open="sidebarOpen"
       :word-wrap="settings.wordWrap"
       :minimap="settings.minimap"
       :theme="settings.theme"
-      @new-file="handleNewFile"
+      @new-file="() => handleNewFile(activeGroupId)"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
       @format-code="handleFormatCode"
-      @split="splitEditor"
+      @split="handleSplit"
       @close-split="closeSplit"
-      @toggle-sidebar="sidebarOpen = !sidebarOpen"
       @toggle-theme="toggleTheme"
       @toggle-wordwrap="toggleWordWrap"
       @toggle-minimap="toggleMinimap"
       @open-settings="showSettings = true"
+      @rename-file="handleRenameFile"
     />
 
     <!-- Main Workspace -->
     <main class="workspace">
-      <!-- Collapsible File Explorer Sidebar -->
-      <FileExplorer
-        :is-open="sidebarOpen"
-        :files="files"
-        :active-file-id="currentFocusedFile ? currentFocusedFile.id : null"
-        @select-file="handleSelectFileFromExplorer"
-        @close-file="handleCloseFile"
-        @new-file="handleNewFile"
-        @open-file="handleOpenFile"
-      />
-
       <!-- Editor Canvas: Single or Split Panes -->
       <div
         ref="editorAreaRef"
@@ -333,7 +364,9 @@ onBeforeUnmount(() => {
             @select-tab="(id) => handleSelectTab(id, 'group-1')"
             @close-tab="(id) => handleCloseTab(id, 'group-1')"
             @move-tab="(id) => handleMoveTab(id, 'group-1')"
-            @new-file="handleNewFile"
+            @move-tab-drop="handleMoveTabDrop"
+            @rename-file="handleRenameFile"
+            @new-file="() => handleNewFile('group-1')"
             @close-group="handleCloseGroup"
           />
 
@@ -343,13 +376,16 @@ onBeforeUnmount(() => {
               :file="activeFile1"
               :settings="settings"
               :is-active-group="activeGroupId === 'group-1'"
+              :is-split="isSplit"
               @update:content="updateContent"
               @focus="handlePaneFocus"
               @cursor-change="handleCursorChange"
-              @new-file="handleNewFile"
+              @new-file="() => handleNewFile('group-1')"
               @open-file="handleOpenFile"
               @save-file="handleSaveFile(false)"
               @format-file="handleFormatCode"
+              @split-drop="handleSplitDrop"
+              @move-tab-drop="handleMoveTabDrop"
             />
           </div>
         </div>
@@ -383,7 +419,9 @@ onBeforeUnmount(() => {
             @select-tab="(id) => handleSelectTab(id, 'group-2')"
             @close-tab="(id) => handleCloseTab(id, 'group-2')"
             @move-tab="(id) => handleMoveTab(id, 'group-2')"
-            @new-file="handleNewFile"
+            @move-tab-drop="handleMoveTabDrop"
+            @rename-file="handleRenameFile"
+            @new-file="() => handleNewFile('group-2')"
             @close-group="handleCloseGroup"
           />
 
@@ -393,13 +431,16 @@ onBeforeUnmount(() => {
               :file="activeFile2"
               :settings="settings"
               :is-active-group="activeGroupId === 'group-2'"
+              :is-split="isSplit"
               @update:content="updateContent"
               @focus="handlePaneFocus"
               @cursor-change="handleCursorChange"
-              @new-file="handleNewFile"
+              @new-file="() => handleNewFile('group-2')"
               @open-file="handleOpenFile"
               @save-file="handleSaveFile(false)"
               @format-file="handleFormatCode"
+              @split-drop="handleSplitDrop"
+              @move-tab-drop="handleMoveTabDrop"
             />
           </div>
         </div>

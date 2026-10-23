@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import type { EditorFile } from '../types/editor';
 import { detectLanguage, disposeMonacoModel } from '../services/monaco';
+import { normalizeFileName } from '../services/languages';
 import { openLocalFiles, saveLocalFile } from '../services/fileSystem';
 import { useToast } from './useToast';
 
@@ -12,103 +13,11 @@ function generateId(): string {
 
 const initialFiles: EditorFile[] = [
   {
-    id: 'file_welcome',
-    name: 'welcome.ts',
+    id: 'file_index',
+    name: 'index.ts',
     language: 'typescript',
     isDirty: false,
-    content: `// Welcome to MC Code Editor!
-// A fast, VS Code-inspired browser-based code editor built with Vue 3 & Monaco.
-
-interface EditorFeature {
-  name: string;
-  description: string;
-  shortcut?: string;
-}
-
-export const features: EditorFeature[] = [
-  {
-    name: 'Monaco Editor Integration',
-    description: 'Syntax highlighting, bracket matching, code folding, minimap, multi-cursor',
-  },
-  {
-    name: 'Code Formatting with Prettier',
-    description: 'Format TypeScript, JavaScript, HTML, CSS, SCSS, JSON, and Markdown',
-    shortcut: 'Shift + Alt + F (or Option + Shift + F on Mac)',
-  },
-  {
-    name: 'Split Editor Panes',
-    description: 'Split vertically or horizontally, drag dividers, synchronize same-file edits',
-    shortcut: 'Toolbar split icons',
-  },
-  {
-    name: 'Local File System Access',
-    description: 'Open & Save local files directly using native Browser File System APIs',
-    shortcut: 'Ctrl+O / Ctrl+S (or Cmd+O / Cmd+S on Mac)',
-  },
-  {
-    name: 'Multi-Tab Management',
-    description: 'Independent tabs per split pane, unsaved changes warnings, move tabs across panes',
-  },
-];
-
-console.log("Ready to code! Check the toolbar above for actions.");
-`,
-  },
-  {
-    id: 'file_styles',
-    name: 'styles.css',
-    language: 'css',
-    isDirty: false,
-    content: `/* Modern CSS Variables & Styling */
-:root {
-  --primary-color: #007acc;
-  --bg-editor: #1e1e1e;
-  --text-main: #cccccc;
-  --border-subtle: #2b2b2b;
-}
-
-.editor-container {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  background-color: var(--bg-editor);
-  color: var(--text-main);
-}
-
-.pane {
-  flex: 1;
-  overflow: hidden;
-  border-right: 1px solid var(--border-subtle);
-}
-`,
-  },
-  {
-    id: 'file_app_json',
-    name: 'config.json',
-    language: 'json',
-    isDirty: false,
-    content: `{
-  "name": "mc-code-editor",
-  "version": "1.0.0",
-  "description": "VS Code inspired browser editor",
-  "settings": {
-    "tabSize": 2,
-    "insertSpaces": true,
-    "minimap": true,
-    "wordWrap": "on"
-  },
-  "supportedLanguages": [
-    "typescript",
-    "javascript",
-    "html",
-    "css",
-    "scss",
-    "json",
-    "markdown"
-  ]
-}
-`,
+    content: '// Welcome to MC Code Editor!\n',
   },
 ];
 
@@ -296,6 +205,19 @@ export function useEditorFiles() {
     }
   }
 
+  function renameFile(fileId: string, newName: string): boolean {
+    const file = getFileById(fileId);
+    if (!file) return false;
+
+    const normalized = normalizeFileName(newName, 'ts');
+    if (file.name === normalized) return false;
+
+    file.name = normalized;
+    file.language = detectLanguage(normalized);
+    success(`Renamed file to ${normalized}`);
+    return true;
+  }
+
   return {
     files,
     getFileById,
@@ -304,6 +226,7 @@ export function useEditorFiles() {
     saveFile,
     updateContent,
     setLanguage,
+    renameFile,
     requestCloseFile,
     removeFileDirectly,
     pendingCloseFile,

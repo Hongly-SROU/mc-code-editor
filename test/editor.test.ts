@@ -1,4 +1,9 @@
-import { detectLanguage, SUPPORTED_LANGUAGES } from '../src/services/languages.ts';
+import {
+  detectLanguage,
+  SUPPORTED_LANGUAGES,
+  normalizeFileName,
+  LANGUAGE_TO_EXTENSION,
+} from '../src/services/languages.ts';
 import { formatCode, isLanguageFormattable } from '../src/services/formatter.ts';
 import type { EditorSettings } from '../src/types/editor.ts';
 
@@ -43,6 +48,20 @@ async function runTests() {
   assert(detectLanguage('Dockerfile') === 'dockerfile', 'detect Dockerfile as dockerfile');
   assert(detectLanguage('unknown.xyz') === 'plaintext', 'detect unknown as plaintext');
   assert(SUPPORTED_LANGUAGES.length >= 10, 'SUPPORTED_LANGUAGES has sufficient modes');
+
+  console.log('\n--- Testing File Extension Normalization & Custom Extensions ---');
+  assert(normalizeFileName('index') === 'index.ts', 'default extension is .ts when none provided');
+  assert(normalizeFileName('my-script') === 'my-script.ts', 'defaults to .ts');
+  assert(normalizeFileName('app.vue') === 'app.vue', 'preserves .vue extension');
+  assert(normalizeFileName('style.css') === 'style.css', 'preserves .css extension');
+  assert(normalizeFileName('server.py') === 'server.py', 'preserves .py extension');
+  assert(normalizeFileName('data.json') === 'data.json', 'preserves .json extension');
+  assert(normalizeFileName('doc.md') === 'doc.md', 'preserves .md extension');
+  assert(normalizeFileName('custom.myext') === 'custom.myext', 'allows any custom extension');
+  assert(detectLanguage('custom.myext') === 'plaintext', 'custom unknown extension is handled safely');
+  assert(LANGUAGE_TO_EXTENSION['python'] === 'py', 'language mapping for python');
+  assert(LANGUAGE_TO_EXTENSION['typescript'] === 'ts', 'language mapping for typescript');
+  assert(LANGUAGE_TO_EXTENSION['javascript'] === 'js', 'language mapping for javascript');
 
   console.log('\n--- Testing Prettier Formatter ---');
   // TypeScript format

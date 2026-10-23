@@ -2,13 +2,15 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import type { EditorFile, EditorSettings, CursorPosition } from '../types/editor';
 import { monaco, getOrCreateMonacoModel } from '../services/monaco';
-import { FilePlus, FolderOpen, Code2 } from 'lucide-vue-next';
+import { useDragDrop, type DropRegion } from '../composables/useDragDrop';
+import { FilePlus, FolderOpen, Code2, Columns, Rows, ArrowRight } from 'lucide-vue-next';
 
 const props = defineProps<{
   file: EditorFile | null;
   settings: EditorSettings;
   isActiveGroup: boolean;
   groupId: string;
+  isSplit?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,7 +21,78 @@ const emit = defineEmits<{
   (e: 'open-file'): void;
   (e: 'save-file'): void;
   (e: 'format-file'): void;
+  (
+    e: 'split-drop',
+    fileId: string,
+    fromGroupId: string,
+    direction: 'vertical' | 'horizontal',
+    target: 'right' | 'bottom' | 'left' | 'top'
+  ): void;
+  (
+    e: 'move-tab-drop',
+    fileId: string,
+    fromGroupId: string,
+    toGroupId: string
+  ): void;
 }>();
+
+const { isDraggingTab, draggedFileId, sourceGroupId, endDrag } = useDragDrop();
+const currentHoverRegion = ref<DropRegion | null>(null);
+
+function onPaneDragOver(e: DragEvent) {
+  if (!isDraggingTab.value || !editorContainer.value) return;
+  e.preventDefault();
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  const rect = editorContainer.value.getBoundingClientRect();
+  const relX = (e.clientX - rect.left) / rect.width;
+  const relY = (e.clientY - rect.top) / rect.height;
+
+  if (relX > 0.65) {
+    currentHoverRegion.value = 'right';
+  } else if (relY > 0.65) {
+    currentHoverRegion.value = 'bottom';
+  } else if (relX < 0.35 && props.isSplit && props.groupId === 'group-2') {
+    currentHoverRegion.value = 'left';
+  } else if (relY < 0.35 && props.isSplit && props.groupId === 'group-2') {
+    currentHoverRegion.value = 'top';
+  } else {
+    currentHoverRegion.value = 'center';
+  }
+}
+
+function onPaneDragLeave(e: DragEvent) {
+  const currentTarget = e.currentTarget as HTMLElement;
+  const relatedTarget = e.relatedTarget as HTMLElement;
+  if (!currentTarget || !relatedTarget || !currentTarget.contains(relatedTarget)) {
+    currentHoverRegion.value = null;
+  }
+}
+
+function onPaneDrop(e: DragEvent) {
+  e.preventDefault();
+  const fileId = e.dataTransfer?.getData('text/plain') || draggedFileId.value;
+  const fromGroup = sourceGroupId.value || props.groupId;
+  const targetRegion = currentHoverRegion.value;
+  currentHoverRegion.value = null;
+
+  if (!fileId) return;
+
+  if (targetRegion === 'right') {
+    emit('split-drop', fileId, fromGroup, 'vertical', 'right');
+  } else if (targetRegion === 'bottom') {
+    emit('split-drop', fileId, fromGroup, 'horizontal', 'bottom');
+  } else if (targetRegion === 'left') {
+    emit('split-drop', fileId, fromGroup, 'vertical', 'left');
+  } else if (targetRegion === 'top') {
+    emit('split-drop', fileId, fromGroup, 'horizontal', 'top');
+  } else if (targetRegion === 'center') {
+    emit('move-tab-drop', fileId, fromGroup, props.groupId);
+  }
+  endDrag();
+}
 
 const editorContainer = ref<HTMLDivElement | null>(null);
 let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -114,10 +187,13 @@ function updateEditorModel() {
   editorInstance.setModel(model);
 
   // Listen to edits in Monaco
-  contentChangeDisposable = model.onDidChangeContent(() => {
+  contentChangeDisposable = model.onDidChangeContent((e) => {
+    if (e.isFlush) return;
     if (props.file && model) {
       const val = model.getValue();
-      emit('update:content', props.file.id, val);
+      if (props.file.content !== val) {
+        emit('update:content', props.file.id, val);
+      }
     }
   });
 }
@@ -233,6 +309,9 @@ onBeforeUnmount(() => {
     class="editor-pane-container"
     :class="{ 'is-active-pane': isActiveGroup }"
     @click="emit('focus', groupId)"
+    @dragover="onPaneDragOver"
+    @dragleave="onPaneDragLeave"
+    @drop="onPaneDrop"
   >
     <!-- Monaco Editor Mount Target -->
     <div
@@ -241,12 +320,44 @@ onBeforeUnmount(() => {
       :class="{ hidden: !file }"
     ></div>
 
+    <!-- Drag & Drop Visual Split Indicator Overlay -->
+    <div
+      v-if="isDraggingTab && currentHoverRegion"
+      class="drop-zone-overlay"
+      :class="'drop-' + currentHoverRegion"
+    >
+      <div class="drop-zone-badge">
+        <Columns
+          v-if="currentHoverRegion === 'right' || currentHoverRegion === 'left'"
+          :size="22"
+        />
+        <Rows
+          v-else-if="currentHoverRegion === 'bottom' || currentHoverRegion === 'top'"
+          :size="22"
+        />
+        <ArrowRight v-else :size="22" />
+        <span>
+          {{
+            currentHoverRegion === 'right'
+              ? 'Split Right'
+              : currentHoverRegion === 'bottom'
+              ? 'Split Down'
+              : currentHoverRegion === 'left'
+              ? 'Split Left'
+              : currentHoverRegion === 'top'
+              ? 'Split Top'
+              : 'Open in this Editor'
+          }}
+        </span>
+      </div>
+    </div>
+
     <!-- Empty State when no file is active in this pane -->
     <div v-if="!file" class="empty-pane-placeholder">
       <div class="empty-pane-content">
         <Code2 :size="48" class="empty-icon" />
         <h3>No Open File</h3>
-        <p>Select a file from the explorer, open a file from disk, or create a new file.</p>
+        <p>Open a file from disk, create a new file, or drag a tab here.</p>
         <div class="empty-actions">
           <button class="empty-btn" @click="emit('new-file')">
             <FilePlus :size="16" />
@@ -271,6 +382,66 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background-color: var(--vscode-editor-bg);
+}
+
+/* Drag and Drop VS Code Overlay */
+.drop-zone-overlay {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: none;
+  background-color: rgba(0, 122, 204, 0.22);
+  border: 2px dashed var(--vscode-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(1px);
+  transition: all 0.15s ease-out;
+}
+
+.drop-zone-overlay.drop-right {
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+}
+
+.drop-zone-overlay.drop-left {
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+}
+
+.drop-zone-overlay.drop-bottom {
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 50%;
+}
+
+.drop-zone-overlay.drop-top {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 50%;
+}
+
+.drop-zone-overlay.drop-center {
+  inset: 0;
+}
+
+.drop-zone-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--vscode-editor-bg);
+  color: var(--vscode-fg);
+  border: 1px solid var(--vscode-border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .monaco-host {

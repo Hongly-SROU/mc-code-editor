@@ -37,3 +37,4 @@ export function useToast() {
     error: (msg: string, d?: number) => addToast(msg, 'error', d),
   };
 }
+

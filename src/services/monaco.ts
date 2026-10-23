@@ -97,3 +97,4 @@ export function defineCustomThemes(): void {
 defineCustomThemes();
 
 export { monaco };
+

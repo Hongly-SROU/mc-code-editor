@@ -411,3 +411,4 @@ const activeTab = ref<'editor' | 'prettier' | 'about'>('editor');
   background-color: var(--vscode-button-hover);
 }
 </style>
+

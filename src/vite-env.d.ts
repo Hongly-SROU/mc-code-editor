@@ -12,3 +12,4 @@ declare module '*?worker' {
   };
   export default workerConstructor;
 }
+

@@ -25,3 +25,4 @@ self.MonacoEnvironment = {
 };
 
 export { monaco };
+

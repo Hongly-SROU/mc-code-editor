@@ -39,15 +39,57 @@ export function useEditorGroups(initialFileIds: string[] = []) {
     }
   }
 
-  function splitEditor(direction: 'vertical' | 'horizontal') {
-    if (splitDirection.value === direction) return;
+  function splitEditor(
+    direction: 'vertical' | 'horizontal',
+    targetFileId?: string
+  ) {
     splitDirection.value = direction;
 
-    // If group-2 is empty, copy current active file to group-2 so it opens nicely
-    if (groups.value[1].fileIds.length === 0 && groups.value[0].activeFileId) {
-      groups.value[1].fileIds.push(groups.value[0].activeFileId);
-      groups.value[1].activeFileId = groups.value[0].activeFileId;
+    if (targetFileId) {
+      if (!groups.value[1].fileIds.includes(targetFileId)) {
+        groups.value[1].fileIds.push(targetFileId);
+      }
+      groups.value[1].activeFileId = targetFileId;
+      activeGroupId.value = 'group-2';
     }
+  }
+
+  function splitWithDraggedFile(
+    fileId: string,
+    fromGroupId: string,
+    direction: 'vertical' | 'horizontal',
+    targetPosition: 'right' | 'bottom' | 'left' | 'top' = 'right'
+  ) {
+    splitDirection.value = direction;
+
+    if (targetPosition === 'right' || targetPosition === 'bottom') {
+      closeTabInGroup(fileId, fromGroupId);
+      if (!groups.value[1].fileIds.includes(fileId)) {
+        groups.value[1].fileIds.push(fileId);
+      }
+      groups.value[1].activeFileId = fileId;
+      activeGroupId.value = 'group-2';
+    } else {
+      closeTabInGroup(fileId, fromGroupId);
+      if (!groups.value[0].fileIds.includes(fileId)) {
+        groups.value[0].fileIds.push(fileId);
+      }
+      groups.value[0].activeFileId = fileId;
+      activeGroupId.value = 'group-1';
+    }
+  }
+
+  function moveTab(fileId: string, fromGroupId: string, toGroupId: string) {
+    if (fromGroupId === toGroupId) return;
+    closeTabInGroup(fileId, fromGroupId);
+    const targetGroup = groups.value.find((g) => g.id === toGroupId);
+    if (targetGroup) {
+      if (!targetGroup.fileIds.includes(fileId)) {
+        targetGroup.fileIds.push(fileId);
+      }
+      targetGroup.activeFileId = fileId;
+    }
+    activeGroupId.value = toGroupId;
   }
 
   function closeSplit() {
@@ -132,6 +174,8 @@ export function useEditorGroups(initialFileIds: string[] = []) {
     currentActiveFileId,
     setActiveGroup,
     splitEditor,
+    splitWithDraggedFile,
+    moveTab,
     closeSplit,
     openFileInGroup,
     closeTabInGroup,
@@ -140,3 +184,4 @@ export function useEditorGroups(initialFileIds: string[] = []) {
     updateSplitRatio,
   };
 }
+

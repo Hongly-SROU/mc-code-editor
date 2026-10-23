@@ -64,6 +64,38 @@ export const SUPPORTED_LANGUAGES = [
   { id: 'plaintext', name: 'Plain Text' },
 ];
 
+export const LANGUAGE_TO_EXTENSION: Record<string, string> = {
+  typescript: 'ts',
+  javascript: 'js',
+  json: 'json',
+  html: 'html',
+  css: 'css',
+  scss: 'scss',
+  markdown: 'md',
+  python: 'py',
+  rust: 'rs',
+  go: 'go',
+  cpp: 'cpp',
+  sql: 'sql',
+  yaml: 'yaml',
+  xml: 'xml',
+  shell: 'sh',
+  plaintext: 'txt',
+};
+
+/**
+ * Normalizes a file name ensuring that if no extension is provided,
+ * it defaults to '.ts'.
+ */
+export function normalizeFileName(inputName: string, defaultExt = 'ts'): string {
+  const trimmed = inputName.trim();
+  if (!trimmed) return `Untitled.${defaultExt}`;
+  if (!trimmed.includes('.')) {
+    return `${trimmed}.${defaultExt}`;
+  }
+  return trimmed;
+}
+
 export function detectLanguage(fileName: string): string {
   const parts = fileName.toLowerCase().split('.');
   if (parts.length > 1) {
@@ -77,3 +109,4 @@ export function detectLanguage(fileName: string): string {
   if (lowerName.startsWith('.env')) return 'ini';
   return 'plaintext';
 }
+

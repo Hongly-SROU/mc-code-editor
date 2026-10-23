@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import type { EditorFile, SplitDirection } from '../types/editor';
 import {
   FilePlus,
@@ -10,19 +10,18 @@ import {
   Columns,
   Rows,
   Maximize2,
-  PanelLeft,
   Sun,
   Moon,
   Settings,
   Code2,
   WrapText,
   MapPin,
+  Pencil,
 } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
   activeFile: EditorFile | null;
   splitDirection: SplitDirection;
-  sidebarOpen: boolean;
   wordWrap: 'on' | 'off';
   minimap: boolean;
   theme: 'vs-dark' | 'vs-light';
@@ -35,31 +34,50 @@ const emit = defineEmits<{
   (e: 'format-code'): void;
   (e: 'split', direction: 'vertical' | 'horizontal'): void;
   (e: 'close-split'): void;
-  (e: 'toggle-sidebar'): void;
   (e: 'toggle-theme'): void;
   (e: 'toggle-wordwrap'): void;
   (e: 'toggle-minimap'): void;
   (e: 'open-settings'): void;
+  (e: 'rename-file', fileId: string, newName: string): void;
 }>();
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
 const modKey = computed(() => (isMac ? '⌘' : 'Ctrl'));
 const altKey = computed(() => (isMac ? '⌥' : 'Alt'));
+
+const isRenaming = ref(false);
+const toolbarEditName = ref('');
+const toolbarRenameInput = ref<HTMLInputElement | null>(null);
+
+function startToolbarRename() {
+  if (!props.activeFile) return;
+  toolbarEditName.value = props.activeFile.name;
+  isRenaming.value = true;
+  nextTick(() => {
+    toolbarRenameInput.value?.focus();
+    toolbarRenameInput.value?.select();
+  });
+}
+
+function commitToolbarRename() {
+  if (isRenaming.value && props.activeFile) {
+    const val = toolbarEditName.value.trim();
+    if (val) {
+      emit('rename-file', props.activeFile.id, val);
+    }
+    isRenaming.value = false;
+  }
+}
+
+function cancelToolbarRename() {
+  isRenaming.value = false;
+}
 </script>
 
 <template>
   <header class="toolbar">
-    <!-- Left Section: App Brand & Sidebar Toggle -->
+    <!-- Left Section: App Brand & File Actions -->
     <div class="toolbar-section left">
-      <button
-        class="tool-btn icon-only"
-        :class="{ active: sidebarOpen }"
-        :title="`${sidebarOpen ? 'Hide' : 'Show'} Explorer (${modKey}+B)`"
-        @click="emit('toggle-sidebar')"
-      >
-        <PanelLeft :size="16" />
-      </button>
-
       <div class="brand">
         <Code2 :size="18" class="brand-icon" />
         <span class="brand-name">MC Editor</span>
@@ -124,9 +142,35 @@ const altKey = computed(() => (isMac ? '⌥' : 'Alt'));
     <!-- Center Section: Current File Info -->
     <div class="toolbar-section center">
       <div v-if="activeFile" class="active-file-indicator">
-        <span class="file-name">{{ activeFile.name }}</span>
-        <span v-if="activeFile.isDirty" class="file-dirty-dot" title="Modified">●</span>
-        <span class="file-lang-pill">{{ activeFile.language }}</span>
+        <template v-if="isRenaming">
+          <input
+            ref="toolbarRenameInput"
+            v-model="toolbarEditName"
+            class="toolbar-rename-input"
+            @keydown.enter.stop="commitToolbarRename"
+            @keydown.esc.stop="cancelToolbarRename"
+            @blur="commitToolbarRename"
+            @click.stop
+          />
+        </template>
+        <template v-else>
+          <span
+            class="file-name clickable"
+            title="Double-click to edit file extension"
+            @dblclick="startToolbarRename"
+          >
+            {{ activeFile.name }}
+          </span>
+          <button
+            class="rename-btn"
+            title="Rename file & extension"
+            @click="startToolbarRename"
+          >
+            <Pencil :size="12" />
+          </button>
+          <span v-if="activeFile.isDirty" class="file-dirty-dot" title="Modified">●</span>
+          <span class="file-lang-pill">{{ activeFile.language }}</span>
+        </template>
       </div>
       <div v-else class="active-file-indicator muted">
         No file open
@@ -330,6 +374,39 @@ const altKey = computed(() => (isMac ? '⌥' : 'Alt'));
   font-weight: 500;
   font-size: 12px;
   color: var(--vscode-fg);
+}
+
+.file-name.clickable {
+  cursor: pointer;
+}
+.file-name.clickable:hover {
+  text-decoration: underline;
+}
+
+.rename-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-fg-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+}
+.rename-btn:hover {
+  color: var(--vscode-fg);
+  background-color: var(--vscode-toolbar-hover);
+}
+
+.toolbar-rename-input {
+  background-color: var(--vscode-input-bg);
+  color: var(--vscode-fg);
+  border: 1px solid var(--vscode-accent);
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+  width: 140px;
 }
 
 .file-dirty-dot {
